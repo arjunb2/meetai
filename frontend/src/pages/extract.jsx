@@ -1,5 +1,5 @@
-import { useState, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useRef, useEffect } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useTasks } from "../context/taskcontext"
 import axios from "axios"
 
@@ -11,26 +11,38 @@ export default function Extract() {
   const [loading, setLoading] = useState(false)
   const [recording, setRecording] = useState(false)
   const [error, setError] = useState("")
+  const [minutes, setMinutes] = useState("")
+  const [attendance, setAttendance] = useState("")
+  const [selectedClub, setSelectedClub] = useState("")
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
-  const { saveMeeting } = useTasks()
+  const { saveMeeting, clubs, allMeetings, updateMeeting } = useTasks()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const editId = searchParams.get("edit")
+
+  useEffect(() => {
+    if (editId) {
+      const meeting = allMeetings.find(m => m.id === Number(editId))
+      if (meeting) {
+        setSelectedClub(meeting.club)
+        setAttendance(meeting.attendance || "")
+        setMinutes(meeting.minutes || "")
+        setTasks(meeting.tasks || [])
+      }
+    }
+  }, [editId])
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     const mediaRecorder = new MediaRecorder(stream)
     mediaRecorderRef.current = mediaRecorder
     audioChunksRef.current = []
-
-    mediaRecorder.ondataavailable = (e) => {
-      audioChunksRef.current.push(e.data)
-    }
-
+    mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data)
     mediaRecorder.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" })
       const formData = new FormData()
       formData.append("file", audioBlob, "audio.wav")
-
       setLoading(true)
       try {
         const res = await axios.post("http://127.0.0.1:8000/transcribe", formData)
@@ -41,7 +53,6 @@ export default function Extract() {
       }
       setLoading(false)
     }
-
     mediaRecorder.start()
     setRecording(true)
   }
@@ -56,17 +67,29 @@ export default function Extract() {
     setLoading(true)
     setError("")
     setTasks([])
-
     try {
       const formData = new FormData()
       formData.append("notes", notes)
       const res = await axios.post("http://127.0.0.1:8000/extract", formData)
       setTasks(res.data.tasks)
-      saveMeeting(res.data.tasks)
     } catch (err) {
       setError("Something went wrong. Try again.")
     }
     setLoading(false)
+  }
+
+  const handleSave = () => {
+    if (editId) {
+      updateMeeting(Number(editId), {
+        club: selectedClub || clubs[0],
+        attendance,
+        minutes,
+        tasks
+      })
+    } else {
+      saveMeeting(tasks, selectedClub || clubs[0], minutes, attendance)
+    }
+    navigate("/")
   }
 
   const priorityColor = (p) => {
@@ -99,8 +122,46 @@ export default function Extract() {
   return (
     <div className="app">
       <div className="header">
-        <h1>🗒️ MeetAI</h1>
-        <p>Convert meeting notes into a structured execution plan instantly</p>
+        <button className="back-btn" onClick={() => navigate("/")}>← Back</button>
+        <h1>{editId ? "✏️ Edit Meeting" : "⚡ New Meeting"}</h1>
+        <p>Extract tasks from your meeting notes</p>
+      </div>
+
+      <div className="card">
+        <p className="meeting-section-title">🏷️ Select Club</p>
+        <div className="club-row" style={{ marginTop: "12px" }}>
+          {clubs.map(club => (
+            <button
+              key={club}
+              className={selectedClub === club ? "club-btn active" : "club-btn"}
+              onClick={() => setSelectedClub(club)}
+            >
+              {club}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <p className="meeting-section-title">👥 Attendance</p>
+        <input
+          className="meeting-input"
+          placeholder="e.g. Arjun, Alan, Riya, John..."
+          value={attendance}
+          onChange={e => setAttendance(e.target.value)}
+          style={{ marginTop: "12px" }}
+        />
+      </div>
+
+      <div className="card">
+        <p className="meeting-section-title">📝 Minutes of Meeting</p>
+        <textarea
+          placeholder="Write key discussion points, decisions made..."
+          value={minutes}
+          onChange={e => setMinutes(e.target.value)}
+          rows={4}
+          style={{ marginTop: "12px" }}
+        />
       </div>
 
       <div className="card">
@@ -152,6 +213,16 @@ export default function Extract() {
           {loading ? "Processing..." : "⚡ Extract Tasks"}
         </button>
 
+        {(tasks.length > 0 || minutes || attendance) && (
+          <button
+            className="extract-btn"
+            style={{ background: "#2a2a2a", color: "#f0f0f0", marginTop: "8px" }}
+            onClick={handleSave}
+          >
+            💾 {editId ? "Update Meeting" : "Save Meeting"}
+          </button>
+        )}
+
         {error && <p className="error">{error}</p>}
       </div>
 
@@ -189,10 +260,6 @@ export default function Extract() {
 
           <button className="download-btn" onClick={downloadCSV}>
             📥 Download CSV
-          </button>
-
-          <button className="dashboard-btn" onClick={() => navigate("/dashboard")}>
-            📊 View Dashboard
           </button>
         </div>
       )}

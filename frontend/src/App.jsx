@@ -9,8 +9,8 @@ export default function App() {
     <TaskProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Extract />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/extract" element={<Extract />} />
         </Routes>
       </BrowserRouter>
     </TaskProvider>
