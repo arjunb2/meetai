@@ -45,7 +45,7 @@ export default function Extract() {
       formData.append("file", audioBlob, "audio.wav")
       setLoading(true)
       try {
-        const res = await axios.post("http://127.0.0.1:8000/transcribe", formData)
+        const res = await axios.post("https://meetai-backend-eews.onrender.com/transcribe", formData)
         setTranscript(res.data.transcript)
         setNotes(res.data.transcript)
       } catch (err) {
@@ -70,7 +70,7 @@ export default function Extract() {
     try {
       const formData = new FormData()
       formData.append("notes", notes)
-      const res = await axios.post("http://127.0.0.1:8000/extract", formData)
+      const res = await axios.post("https://meetai-backend-eews.onrender.com/extract", formData)
       setTasks(res.data.tasks)
     } catch (err) {
       setError("Something went wrong. Try again.")
